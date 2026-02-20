@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Gulzar&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-gulzar: "Gulzar", serif;
+  --font-amiri: "Amiri Quran", serif;
+  --font-urdu: "Noto Nastaliq Urdu", serif;
+}
+
+:root {
+  --color-gold: #D4AF37;
+  --color-emerald: #064e3b;
+  --color-emerald-light: #065f46;
+}
+
+body {
+  @apply bg-[#051c12] text-white antialiased overflow-x-hidden;
+  font-family: var(--font-gulzar), ui-sans-serif, system-ui, sans-serif;
+}
+
+.urdu-text {
+  direction: rtl;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.atmosphere {
+  background: 
+    radial-gradient(circle at 50% -20%, rgba(212, 175, 55, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(6, 78, 59, 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(6, 95, 70, 0.4) 0%, transparent 50%);
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.glow-effect {
+  animation: glow 4s ease-in-out infinite;
+}
