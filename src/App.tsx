@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Sun, Clock, MapPin, Calendar, Heart } from 'lucide-react';
+import { Moon, Sun, Clock, MapPin, Calendar, Heart, Bell, Info } from 'lucide-react';
 
 const ramadanData: Record<string, { sehri: string; iftar: string }> = {
   "2026-02-19": { sehri: "05:23:17", iftar: "17:57:06" },
@@ -63,6 +63,16 @@ function formatTo12Hour(timeStr: string) {
   return `${String(hours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
 }
 
+function formatShortTime(timeStr: string) {
+  if (!timeStr) return "--:--";
+  const [hoursStr, minutes] = timeStr.split(':');
+  let hours = parseInt(hoursStr, 10);
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
 export default function App() {
   const [now, setNow] = useState(new Date());
   const [displayData, setDisplayData] = useState<{
@@ -73,6 +83,8 @@ export default function App() {
     isFinished: boolean;
     isBefore: boolean;
     currentDua: number;
+    fajr: string;
+    maghrib: string;
   }>({
     sehri: "--:--:--",
     iftar: "--:--:--",
@@ -81,6 +93,8 @@ export default function App() {
     isFinished: false,
     isBefore: false,
     currentDua: 0,
+    fajr: "--:--",
+    maghrib: "--:--",
   });
 
   useEffect(() => {
@@ -138,6 +152,8 @@ export default function App() {
             targetText: "رمضان المبارک اختتام پذیر ہوا",
             countdown: { h: "00", m: "00", s: "00" },
             isFinished: true,
+            fajr: formatShortTime(todayTimes.sehri),
+            maghrib: formatShortTime(todayTimes.iftar),
           }));
           return;
         }
@@ -156,6 +172,8 @@ export default function App() {
         isFinished: false,
         isBefore: false,
         currentDua: duaIndex,
+        fajr: formatShortTime(displaySehri),
+        maghrib: formatShortTime(displayIftar),
       });
     } else {
       const firstDayDate = new Date(`2026-02-19T00:00:00`);
@@ -174,6 +192,8 @@ export default function App() {
           isFinished: false,
           isBefore: true,
           currentDua: 0,
+          fajr: "--:--",
+          maghrib: "--:--",
         });
       }
     }
@@ -190,10 +210,10 @@ export default function App() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-5xl z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch"
+        className="w-full max-w-6xl z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch"
       >
         {/* Left Column: Main Display */}
-        <div className="lg:col-span-7 space-y-8">
+        <div className="lg:col-span-7 space-y-6">
           <header className="space-y-2 text-center lg:text-right">
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
@@ -223,7 +243,7 @@ export default function App() {
                     { label: 'Hours', val: displayData.countdown.h },
                     { label: 'Minutes', val: displayData.countdown.m },
                     { label: 'Seconds', val: displayData.countdown.s }
-                  ].map((unit, i) => (
+                  ].map((unit) => (
                     <div key={unit.label} className="flex flex-col items-center">
                       <motion.div 
                         key={unit.val}
@@ -261,10 +281,45 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {/* Prayer Times Grid */}
+          <div className="glass-card rounded-[2rem] p-6">
+            <h3 className="text-center text-[#D4AF37] text-xl font-bold mb-6 flex items-center justify-center gap-2">
+              <Bell size={18} />
+              اوقاتِ نماز (فقہ حنفی)
+            </h3>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+              {[
+                { name: 'فجر', time: displayData.fajr },
+                { name: 'ظہر', time: '01:30 PM' },
+                { name: 'عصر', time: '04:45 PM' },
+                { name: 'مغرب', time: displayData.maghrib },
+                { name: 'عشاء', time: '08:00 PM' }
+              ].map((prayer) => (
+                <div key={prayer.name} className="bg-white/5 border border-[#D4AF37]/20 rounded-2xl p-4 text-center hover:bg-[#D4AF37]/10 transition-colors">
+                  <span className="block text-[#f1c40f] text-lg font-bold mb-1">{prayer.name}</span>
+                  <span className="block text-sm font-mono text-white" dir="ltr">{prayer.time}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Content & Details */}
         <div className="lg:col-span-5 space-y-6 flex flex-col">
+          {/* Announcement Marquee */}
+          <div className="glass-card rounded-2xl overflow-hidden flex items-center border-l-4 border-r-4 border-[#D4AF37]">
+            <div className="bg-[#D4AF37] text-[#003214] px-4 py-3 font-bold text-lg whitespace-nowrap flex items-center gap-2 z-10">
+              <Info size={18} />
+              اعلانات:
+            </div>
+            <div className="flex-1 marquee-container py-3">
+              <div className="marquee-content text-white text-lg font-medium">
+                سنی رضوی اتحاد کونسل گوجرخان کے پورٹل میں خوش آمدید۔ ** یہاں آپ مسجد کے اہم اعلانات، چندے کی اپیل، یا کسی دکان / کاروبار کا اشتہار چلا سکتے ہیں۔ ** نمازِ جمعہ کی اذان 1:00 بجے اور جماعت 1:30 بجے ہوگی۔
+              </div>
+            </div>
+          </div>
+
           <div className="glass-card rounded-[2rem] p-8 flex-1 flex flex-col justify-center space-y-8">
             <div className="space-y-6 text-center">
               <div className="inline-flex p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37]">
