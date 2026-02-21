@@ -75,7 +75,6 @@ function formatShortTime(timeStr: string) {
 
 export default function App() {
   const [now, setNow] = useState(new Date());
-  const [prayerTimings, setPrayerTimings] = useState<Record<string, string>>({});
   const [displayData, setDisplayData] = useState<{
     sehri: string;
     iftar: string;
@@ -101,23 +100,6 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const fetchNamazTimes = async () => {
-      try {
-        const response = await fetch('https://api.aladhan.com/v1/timingsByCity?city=Gujar%20Khan&country=Pakistan&method=1&school=1');
-        const data = await response.json();
-        if (data.data && data.data.timings) {
-          setPrayerTimings(data.data.timings);
-        }
-      } catch (error) {
-        console.error("نماز کے اوقات لانے میں دشواری:", error);
-      }
-    };
-    fetchNamazTimes();
-    const namazInterval = setInterval(fetchNamazTimes, 1000 * 60 * 60 * 6); // Refresh every 6 hours
-    return () => clearInterval(namazInterval);
   }, []);
 
   useEffect(() => {
@@ -304,15 +286,15 @@ export default function App() {
           <div className="glass-card rounded-[2rem] p-6">
             <h3 className="text-center text-[#D4AF37] text-xl font-bold mb-6 flex items-center justify-center gap-2">
               <Bell size={18} />
-              اوقاتِ نماز (سالانہ آٹومیٹک - فقہ حنفی)
+              اوقاتِ نماز (فقہ حنفی)
             </h3>
             <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
               {[
-                { name: 'فجر', time: prayerTimings.Fajr ? formatShortTime(prayerTimings.Fajr) : displayData.fajr },
-                { name: 'ظہر', time: prayerTimings.Dhuhr ? formatShortTime(prayerTimings.Dhuhr) : '01:30 PM' },
-                { name: 'عصر', time: prayerTimings.Asr ? formatShortTime(prayerTimings.Asr) : '04:45 PM' },
-                { name: 'مغرب', time: prayerTimings.Maghrib ? formatShortTime(prayerTimings.Maghrib) : displayData.maghrib },
-                { name: 'عشاء', time: prayerTimings.Isha ? formatShortTime(prayerTimings.Isha) : '08:00 PM' }
+                { name: 'فجر', time: displayData.fajr },
+                { name: 'ظہر', time: '01:30 PM' },
+                { name: 'عصر', time: '04:45 PM' },
+                { name: 'مغرب', time: displayData.maghrib },
+                { name: 'عشاء', time: '08:00 PM' }
               ].map((prayer) => (
                 <div key={prayer.name} className="bg-white/5 border border-[#D4AF37]/20 rounded-2xl p-4 text-center hover:bg-[#D4AF37]/10 hover:scale-105 transition-all duration-300">
                   <span className="block text-[#f1c40f] text-lg font-bold mb-1">{prayer.name}</span>
@@ -325,36 +307,13 @@ export default function App() {
 
         {/* Right Column: Content & Details */}
         <div className="lg:col-span-5 space-y-6 flex flex-col">
-          {/* Announcement Marquee */}
-          <div className="glass-card rounded-2xl overflow-hidden flex items-center border-l-4 border-r-4 border-[#D4AF37]">
-            <div className="bg-[#D4AF37] text-[#003214] px-4 py-3 font-bold text-lg whitespace-nowrap flex items-center gap-2 z-10">
-              <Info size={18} />
-              اعلانات:
-            </div>
-            <div className="flex-1 marquee-container py-3">
-              <div className="marquee-content text-white text-lg font-medium">
-                سنی رضوی اتحاد کونسل گوجرخان کے پورٹل میں خوش آمدید۔ ** ماہانہ درس قرآن ہر ماہ کے پہلے جمعہ کو مرکزی جامع مسجد فیضان مدینہ جی ٹی روڈ گوجرخان میں دیا جاتا ہے۔ ** نماز عشاء کے فوراً بعد
-              </div>
-            </div>
-          </div>
-
-          {/* Sponsorship / Ad Banner */}
-          <div className="glass-card rounded-[2rem] p-8 relative overflow-hidden border-2 border-[#D4AF37]/40 shadow-[0_0_20px_rgba(212,175,55,0.2)]">
-            <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#003214] px-4 py-1 font-bold text-xs rounded-bl-2xl border-b border-l border-[#003214]/10">
-              سپانسر / اشتہار
-            </div>
-            <div className="space-y-4 text-center pt-4">
-              <div className="inline-flex p-3 rounded-full bg-[#D4AF37]/10 text-[#D4AF37] glow-effect">
-                <Star size={24} fill="currentColor" />
-              </div>
-              <h3 className="text-2xl font-bold text-[#f1c40f]">روحانی حساب و تشخیص</h3>
-              <p className="text-lg text-white/80 leading-relaxed font-urdu">
-                اپنا نام، والدہ کا نام اور تاریخِ پیدائش وٹس ایپ کریں۔
-              </p>
-              <div className="flex items-center justify-center gap-2 text-[#D4AF37] text-xl font-bold font-mono" dir="ltr">
-                <Phone size={18} />
-                <span>0345-9755655</span>
-              </div>
+          {/* Notice Board */}
+          <div className="announcement-box">
+            <div className="announcement-header">📢 اہم اعلان</div>
+            <div className="announcement-body">
+                سنی رضوی اتحاد کونسل کے تحت مرکزی جامع مسجد میں <br />ہر ماہ کے پہلے جمعہ کو نمازِ عشاء کے فوراً بعد
+                <span className="highlight-dars">درسِ قرآن</span>
+                ہوتا ہے۔
             </div>
           </div>
 
@@ -403,7 +362,8 @@ export default function App() {
 
           <footer className="text-center lg:text-right px-4">
             <p className="text-sm text-white/30 leading-relaxed">
-              اوقاتِ رمضان: دعوتِ اسلامی | اوقاتِ نماز: لائیو آٹومیٹک سرور
+              اوقات بمطابق: دعوت اسلامی (رمضان ۲۰۲۶/۱۴۴۷)<br />
+              یوسف آباد، ڈھوک ابرا، گوجر خان
             </p>
           </footer>
         </div>
