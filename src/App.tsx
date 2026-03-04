@@ -75,6 +75,8 @@ function formatShortTime(timeStr: string) {
 
 export default function App() {
   const [now, setNow] = useState(new Date());
+  const [timeOffset, setTimeOffset] = useState(0);
+  const [isSynced, setIsSynced] = useState(false);
   const [displayData, setDisplayData] = useState<{
     sehri: string;
     iftar: string;
@@ -97,22 +99,62 @@ export default function App() {
     maghrib: "--:--",
   });
 
+  // Sync with Pakistan Standard Time (PKT) from a reliable API
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    const syncWithPKT = async () => {
+      try {
+        const response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi');
+        const data = await response.json();
+        if (data.datetime) {
+          const serverTime = new Date(data.datetime).getTime();
+          const localTime = Date.now();
+          const offset = serverTime - localTime;
+          setTimeOffset(offset);
+          setIsSynced(true);
+          console.log("Time synced with PKT. Offset:", offset, "ms");
+        }
+      } catch (error) {
+        console.error("Time sync failed, falling back to device time:", error);
+        // Fallback: Just use device time but try to force PKT timezone logic
+        setIsSynced(false);
+      }
+    };
+
+    syncWithPKT();
+    // Re-sync every 30 minutes to maintain accuracy
+    const syncInterval = setInterval(syncWithPKT, 1000 * 60 * 30);
+    return () => clearInterval(syncInterval);
   }, []);
 
   useEffect(() => {
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
+    const timer = setInterval(() => {
+      // Calculate current PKT time
+      // Date.now() is UTC, adding timeOffset corrects device clock errors
+      // Then we handle everything in PKT context
+      const correctedNow = new Date(Date.now() + timeOffset);
+      setNow(correctedNow);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeOffset]);
+
+  useEffect(() => {
+    // We need the date string in PKT (Asia/Karachi)
+    const pktOptions: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    };
+    
+    const formatter = new Intl.DateTimeFormat('en-CA', pktOptions);
+    const todayStr = formatter.format(now); // Returns YYYY-MM-DD in PKT
 
     const todayTimes = ramadanData[todayStr];
 
     if (todayTimes) {
-      const sehriDateTime = new Date(`${todayStr}T${todayTimes.sehri}`);
-      const iftarDateTime = new Date(`${todayStr}T${todayTimes.iftar}`);
+      // Create Date objects for Sehri and Iftar in PKT
+      const sehriDateTime = new Date(`${todayStr}T${todayTimes.sehri}+05:00`);
+      const iftarDateTime = new Date(`${todayStr}T${todayTimes.iftar}+05:00`);
 
       let targetTime: Date;
       let targetText: string;
@@ -129,17 +171,12 @@ export default function App() {
         targetText = "افطار ہونے میں باقی وقت";
         duaIndex = 1;
       } else {
-        const tomorrow = new Date(now);
-        tomorrow.setDate(now.getDate() + 1);
-        const tmrwYear = tomorrow.getFullYear();
-        const tmrwMonth = String(tomorrow.getMonth() + 1).padStart(2, '0');
-        const tmrwDay = String(tomorrow.getDate()).padStart(2, '0');
-        const tomorrowStr = `${tmrwYear}-${tmrwMonth}-${tmrwDay}`;
-
-        const tomorrowTimes = ramadanData[tomorrowStr];
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const tmrwStr = formatter.format(tomorrow);
+        const tomorrowTimes = ramadanData[tmrwStr];
 
         if (tomorrowTimes) {
-          targetTime = new Date(`${tomorrowStr}T${tomorrowTimes.sehri}`);
+          targetTime = new Date(`${tmrwStr}T${tomorrowTimes.sehri}+05:00`);
           targetText = "اگلی سحری میں باقی وقت";
           displaySehri = tomorrowTimes.sehri;
           displayIftar = tomorrowTimes.iftar;
@@ -176,9 +213,9 @@ export default function App() {
         maghrib: formatShortTime(displayIftar),
       });
     } else {
-      const firstDayDate = new Date(`2026-02-19T00:00:00`);
+      const firstDayDate = new Date(`2026-02-19T00:00:00+05:00`);
       if (now < firstDayDate) {
-        const firstSehriTime = new Date(`2026-02-19T${ramadanData["2026-02-19"].sehri}`);
+        const firstSehriTime = new Date(`2026-02-19T${ramadanData["2026-02-19"].sehri}+05:00`);
         const diff = firstSehriTime.getTime() - now.getTime();
         const h = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0');
         const m = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
@@ -197,7 +234,7 @@ export default function App() {
         });
       }
     }
-  }, [now]);
+  }, [now, timeOffset]);
 
   return (
     <div className="min-h-screen atmosphere urdu-text relative overflow-hidden flex flex-col items-center justify-center p-4 md:p-8">
@@ -215,14 +252,26 @@ export default function App() {
         {/* Left Column: Main Display */}
         <div className="lg:col-span-7 space-y-6">
           <header className="space-y-2 text-center lg:text-right">
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] text-sm font-medium mb-2"
-            >
-              <MapPin size={14} />
-              <span>گوجرخان، پاکستان</span>
-            </motion.div>
+            <div className="flex flex-col lg:flex-row items-center lg:justify-end gap-2 mb-2">
+              {isSynced && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>پاکستانی سٹینڈرڈ ٹائم سے ہم آہنگ</span>
+                </motion.div>
+              )}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] text-sm font-medium"
+              >
+                <MapPin size={14} />
+                <span>گوجرخان، پاکستان</span>
+              </motion.div>
+            </div>
             <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-tight">
               سنی رضوی <span className="text-[#D4AF37]">اتحاد کونسل</span>
             </h1>
@@ -350,7 +399,7 @@ export default function App() {
               <div>
                 <p className="text-xs text-white/40 uppercase tracking-wider">آج کی تاریخ</p>
                 <p className="text-lg font-medium">
-                  {now.toLocaleDateString('ur-PK', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {now.toLocaleDateString('ur-PK', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'long', year: 'numeric' })}
                 </p>
               </div>
             </div>
