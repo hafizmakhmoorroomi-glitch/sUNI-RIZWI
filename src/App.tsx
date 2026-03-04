@@ -81,10 +81,13 @@ export default function App() {
   useEffect(() => {
     const syncTime = async () => {
       try {
-        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi');
-        if (!res.ok) throw new Error('Primary API failed');
+        const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=Asia/Karachi', {
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+        if (!res.ok) throw new Error('Server error');
         const data = await res.json();
-        const serverTime = new Date(data.datetime).getTime();
+        const serverTime = new Date(data.dateTime + "+05:00").getTime();
         const localTime = Date.now();
         setTimeOffset(serverTime - localTime);
         setSyncStatus('synced');
@@ -197,7 +200,7 @@ export default function App() {
   }, [now]);
 
   return (
-    <div className="container-custom">
+    <div className="container">
       <h1>سنی رضوی اتحاد کونسل</h1>
       <h2>گوجرخان</h2>
       
@@ -205,10 +208,10 @@ export default function App() {
         {syncStatus === 'syncing' ? "وقت سیٹ ہو رہا ہے..." : `آج کی تاریخ: ${displayData.dateStr}`}
       </div>
       <br />
-      <div className="live-time-badge-custom" style={{ color: syncStatus === 'synced' ? '#2ecc71' : '#f1c40f' }}>
+      <div className="live-time-badge" style={{ color: syncStatus === 'synced' ? '#2ecc71' : '#f1c40f' }}>
         {syncStatus === 'syncing' && "وقت کنیکٹ ہو رہا ہے..."}
         {syncStatus === 'synced' && "🟢 لائیو پاکستان سٹینڈرڈ ٹائم"}
-        {syncStatus === 'failed' && "🟡 ڈیوائس ٹائم (انٹرنیٹ کنیکٹ نہیں)"}
+        {syncStatus === 'failed' && "🟡 ڈیوائس ٹائم (سرور بزی ہے)"}
       </div>
 
       {/* سحری و افطار */}
@@ -230,7 +233,7 @@ export default function App() {
       {/* الٹی گنتی */}
       <div className="countdown-box">
         <div className="countdown-title">{displayData.targetText}</div>
-        <div className="timer-custom" style={{ fontSize: displayData.isPreRamadan ? '2.2rem' : '2.8rem' }}>
+        <div className="timer" style={{ fontSize: displayData.isPreRamadan ? '2.2rem' : '2.8rem' }}>
           {displayData.countdown}
         </div>
       </div>
