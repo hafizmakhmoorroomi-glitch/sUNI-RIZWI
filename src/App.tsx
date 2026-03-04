@@ -90,7 +90,7 @@ export default function App() {
   }>({
     sehri: "--:--:--",
     iftar: "--:--:--",
-    targetText: "لوڈ ہو رہا ہے...",
+    targetText: "وقت کا حساب ہو رہا ہے...",
     countdown: { h: "00", m: "00", s: "00" },
     isFinished: false,
     isBefore: false,
@@ -253,16 +253,14 @@ export default function App() {
         <div className="lg:col-span-7 space-y-6">
           <header className="space-y-2 text-center lg:text-right">
             <div className="flex flex-col lg:flex-row items-center lg:justify-end gap-2 mb-2">
-              {isSynced && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider"
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>پاکستانی سٹینڈرڈ ٹائم سے ہم آہنگ</span>
-                </motion.div>
-              )}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${isSynced ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${isSynced ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                <span>{isSynced ? '🟢 لائیو پاکستان سٹینڈرڈ ٹائم (PKT)' : '🔴 آف لائن ٹائم (اپنے موبائل کا ٹائم درست رکھیں)'}</span>
+              </motion.div>
               <motion.div 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -399,7 +397,7 @@ export default function App() {
               <div>
                 <p className="text-xs text-white/40 uppercase tracking-wider">آج کی تاریخ</p>
                 <p className="text-lg font-medium">
-                  {now.toLocaleDateString('ur-PK', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'long', year: 'numeric' })}
+                  {isSynced ? now.toLocaleDateString('ur-PK', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'long', year: 'numeric' }) : 'انٹرنیٹ سے وقت سیٹ ہو رہا ہے...'}
                 </p>
               </div>
             </div>
