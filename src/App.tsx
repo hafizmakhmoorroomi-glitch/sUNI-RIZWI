@@ -33,24 +33,33 @@ const ramadanData: Record<string, { sehri: string; iftar: string }> = {
   "2026-03-20": { sehri: "04:47:12", iftar: "18:20:31" }
 };
 
-function formatTo12Hour(timeStr: string) {
-  if (!timeStr) return "--:--:--";
-  const [h, m, s] = timeStr.split(':');
-  let hours = parseInt(h, 10);
+function formatTo12HourJSX(timeStr: string) {
+  if (!timeStr) return <>--:--:--<br /><span className="ampm-text">--</span></>;
+  const parts = timeStr.split(':');
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const seconds = parts[2] ? parts[2] : "00";
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${m}:${s} ${ampm}`;
+  return (
+    <>
+      {String(hours).padStart(2, '0')}:{minutes}:{seconds}
+      <br />
+      <span className="ampm-text">{ampm}</span>
+    </>
+  );
 }
 
 function formatShortTime(timeStr: string) {
   if (!timeStr) return "--:--";
-  const [h, m] = timeStr.split(':');
-  let hours = parseInt(h, 10);
+  const parts = timeStr.split(':');
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${m} ${ampm}`;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
 }
 
 export default function App() {
@@ -65,13 +74,13 @@ export default function App() {
     targetText: "وقت کا حساب ہو رہا ہے...",
     countdown: "00:00:00",
     dateStr: "",
+    isPreRamadan: false,
   });
 
   // Time Sync Logic
   useEffect(() => {
     const syncTime = async () => {
       try {
-        // Primary API
         const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi');
         if (!res.ok) throw new Error('Primary API failed');
         const data = await res.json();
@@ -80,20 +89,8 @@ export default function App() {
         setTimeOffset(serverTime - localTime);
         setSyncStatus('synced');
       } catch (err) {
-        console.warn("Primary time sync failed, trying fallback...", err);
-        try {
-          // Fallback API
-          const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=Asia/Karachi');
-          if (!res.ok) throw new Error('Fallback API failed');
-          const data = await res.json();
-          const serverTime = new Date(data.dateTime).getTime();
-          const localTime = Date.now();
-          setTimeOffset(serverTime - localTime);
-          setSyncStatus('synced');
-        } catch (fallbackErr) {
-          console.error("All time sync attempts failed:", fallbackErr);
-          setSyncStatus('failed');
-        }
+        console.warn("Time sync failed, using local time", err);
+        setSyncStatus('failed');
       }
     };
     syncTime();
@@ -147,13 +144,14 @@ export default function App() {
           displayIftar = tomorrowTimes.iftar;
         } else {
           setDisplayData({
-            sehri: formatTo12Hour(displaySehri),
-            iftar: formatTo12Hour(displayIftar),
+            sehri: displaySehri,
+            iftar: displayIftar,
             fajr: formatShortTime(displaySehri),
             maghrib: formatShortTime(displayIftar),
             targetText: "رمضان المبارک اختتام پذیر ہوا",
             countdown: "عید مبارک",
-            dateStr: `${dd}-${mm}-${yyyy}`
+            dateStr: `${dd}-${mm}-${yyyy}`,
+            isPreRamadan: false,
           });
           return;
         }
@@ -165,13 +163,14 @@ export default function App() {
       const s = Math.floor((diff % (1000 * 60)) / 1000);
 
       setDisplayData({
-        sehri: formatTo12Hour(displaySehri),
-        iftar: formatTo12Hour(displayIftar),
+        sehri: displaySehri,
+        iftar: displayIftar,
         fajr: formatShortTime(displaySehri),
         maghrib: formatShortTime(displayIftar),
         targetText,
         countdown: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
-        dateStr: `${dd}-${mm}-${yyyy}`
+        dateStr: `${dd}-${mm}-${yyyy}`,
+        isPreRamadan: false,
       });
     } else {
       const firstDayDate = new Date(`2026-02-19T00:00:00+05:00`);
@@ -190,89 +189,90 @@ export default function App() {
           maghrib: "--:--",
           targetText: "رمضان کی آمد میں باقی وقت:",
           countdown: `${d} دن, ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
-          dateStr: `${dd}-${mm}-${yyyy}`
+          dateStr: `${dd}-${mm}-${yyyy}`,
+          isPreRamadan: true,
         });
       }
     }
   }, [now]);
 
   return (
-    <div className="min-h-screen urdu-text flex flex-col items-center justify-center p-4">
-      <div className="container-custom">
-        <h1 className="text-[#D4AF37] text-4xl md:text-5xl mb-1 drop-shadow-lg font-bold">سنی رضوی اتحاد کونسل</h1>
-        <h2 className="text-2xl md:text-3xl text-white border-b-2 border-[#D4AF37] pb-2 px-4 inline-block mb-4">گوجرخان</h2>
-        
-        <div className="block mb-2">
-          <div className="date-display">
-            {syncStatus === 'syncing' ? "انٹرنیٹ سے وقت سیٹ ہو رہا ہے..." : `آج کی تاریخ: ${displayData.dateStr}`}
-          </div>
-        </div>
-        
-        <div className={`live-time-badge-custom ${syncStatus === 'synced' ? 'text-[#2ecc71]' : syncStatus === 'failed' ? 'text-[#f1c40f]' : 'text-white'}`}>
-          {syncStatus === 'syncing' && "وقت کنیکٹ ہو رہا ہے..."}
-          {syncStatus === 'synced' && "🟢 لائیو پاکستان سٹینڈرڈ ٹائم (مستند)"}
-          {syncStatus === 'failed' && "🟡 لوکل ڈیوائس ٹائم (انٹرنیٹ کنیکٹ نہیں)"}
-        </div>
+    <div className="container-custom">
+      <h1>سنی رضوی اتحاد کونسل</h1>
+      <h2>گوجرخان</h2>
+      
+      <div className="date-display">
+        {syncStatus === 'syncing' ? "وقت سیٹ ہو رہا ہے..." : `آج کی تاریخ: ${displayData.dateStr}`}
+      </div>
+      <br />
+      <div className="live-time-badge-custom" style={{ color: syncStatus === 'synced' ? '#2ecc71' : '#f1c40f' }}>
+        {syncStatus === 'syncing' && "وقت کنیکٹ ہو رہا ہے..."}
+        {syncStatus === 'synced' && "🟢 لائیو پاکستان سٹینڈرڈ ٹائم"}
+        {syncStatus === 'failed' && "🟡 ڈیوائس ٹائم (انٹرنیٹ کنیکٹ نہیں)"}
+      </div>
 
-        {/* سحری و افطار */}
-        <div className="times-box">
-          <div className="time-item">
-            وقتِ سحری
-            <span className="time-value">{displayData.sehri}</span>
-          </div>
-          <div className="time-item">
-            وقتِ افطار
-            <span className="time-value">{displayData.iftar}</span>
-          </div>
+      {/* سحری و افطار */}
+      <div className="times-box">
+        <div className="time-item">
+          <span className="time-title">وقتِ سحری</span>
+          <span className="time-value">
+            {formatTo12HourJSX(displayData.sehri)}
+          </span>
         </div>
+        <div className="time-item">
+          <span className="time-title">وقتِ افطار</span>
+          <span className="time-value">
+            {formatTo12HourJSX(displayData.iftar)}
+          </span>
+        </div>
+      </div>
 
-        {/* الٹی گنتی */}
-        <div className="mt-5">
-          <div className="countdown-title">{displayData.targetText}</div>
-          <div className="timer-custom">
-            {displayData.countdown}
-          </div>
+      {/* الٹی گنتی */}
+      <div className="countdown-box">
+        <div className="countdown-title">{displayData.targetText}</div>
+        <div className="timer-custom" style={{ fontSize: displayData.isPreRamadan ? '2.2rem' : '2.8rem' }}>
+          {displayData.countdown}
         </div>
+      </div>
 
-        {/* نمازوں کے اوقات */}
-        <div className="prayers-title">اوقاتِ نماز (فقہ حنفی)</div>
-        <div className="prayers-grid">
-          <div className="prayer-card">
-            <span className="prayer-name">فجر</span>
-            <span className="prayer-time">{displayData.fajr}</span>
-          </div>
-          <div className="prayer-card">
-            <span className="prayer-name">ظہر</span>
-            <span className="prayer-time">01:30 PM</span> 
-          </div>
-          <div className="prayer-card">
-            <span className="prayer-name">عصر</span>
-            <span className="prayer-time">04:45 PM</span> 
-          </div>
-          <div className="prayer-card">
-            <span className="prayer-name">مغرب</span>
-            <span className="prayer-time">{displayData.maghrib}</span>
-          </div>
-          <div className="prayer-card">
-            <span className="prayer-name">عشاء</span>
-            <span className="prayer-time">08:00 PM</span> 
-          </div>
+      {/* نمازوں کے اوقات */}
+      <div className="prayers-title">اوقاتِ نماز (فقہ حنفی)</div>
+      <div className="prayers-grid">
+        <div className="prayer-card">
+          <span className="prayer-name">فجر</span>
+          <span className="prayer-time">{displayData.fajr}</span>
         </div>
+        <div className="prayer-card">
+          <span className="prayer-name">ظہر</span>
+          <span className="prayer-time">01:30 PM</span> 
+        </div>
+        <div className="prayer-card">
+          <span className="prayer-name">عصر</span>
+          <span className="prayer-time">04:45 PM</span> 
+        </div>
+        <div className="prayer-card">
+          <span className="prayer-name">مغرب</span>
+          <span className="prayer-time">{displayData.maghrib}</span>
+        </div>
+        <div className="prayer-card">
+          <span className="prayer-name">عشاء</span>
+          <span className="prayer-time">08:00 PM</span> 
+        </div>
+      </div>
 
-        {/* مستقل اعلانات کا نوٹس بورڈ */}
-        <div className="announcement-box">
-          <div className="announcement-header">📢 اہم اعلان</div>
-          <div className="announcement-body">
-            سنی رضوی اتحاد کونسل کے تحت مرکزی جامع مسجد میں <br />ہر ماہ کے پہلے جمعہ کو نمازِ عشاء کے فوراً بعد
-            <span className="highlight-dars quran-text">درسِ قرآن</span>
-            ہوتا ہے۔
-          </div>
+      {/* مستقل اعلانات */}
+      <div className="announcement-box">
+        <div className="announcement-header">📢 اہم اعلان</div>
+        <div className="announcement-body">
+          سنی رضوی اتحاد کونسل کے تحت مرکزی جامع مسجد میں <br />ہر ماہ کے پہلے جمعہ کو نمازِ عشاء کے فوراً بعد
+          <span className="highlight-dars">درسِ قرآن</span>
+          ہوتا ہے۔
         </div>
-        
-        <div className="footer">
-          اوقات بمطابق: دعوت اسلامی (رمضان 2026/1447)<br />
-          یوسف آباد، ڈھوک ابرا، گوجر خان
-        </div>
+      </div>
+      
+      <div className="footer">
+        اوقات بمطابق: دعوت اسلامی (رمضان 2026/1447)<br />
+        یوسف آباد، ڈھوک ابرا، گوجر خان
       </div>
     </div>
   );
