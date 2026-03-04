@@ -1,11 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Sun, Clock, MapPin, Calendar, Heart, Bell, Info, Phone, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 
 const ramadanData: Record<string, { sehri: string; iftar: string }> = {
   "2026-02-19": { sehri: "05:23:17", iftar: "17:57:06" },
@@ -40,119 +33,93 @@ const ramadanData: Record<string, { sehri: string; iftar: string }> = {
   "2026-03-20": { sehri: "04:47:12", iftar: "18:20:31" }
 };
 
-const duas = [
-  {
-    title: "سحری کی دعا",
-    arabic: "وَبِصَوْمِ غَدٍ نَّوَيْتُ مِنْ شَهْرِ رَمَضَانَ",
-    urdu: "اور میں نے کل کے رمضان کے روزے کی نیت کی",
-  },
-  {
-    title: "افطار کی دعا",
-    arabic: "اللَّهُمَّ اِنِّى لَكَ صُمْتُ وَبِكَ امنْتُ وَعَلَيْكَ تَوَكَّلْتُ وَعَلَى رِزْقِكَ اَفْطَرْتُ",
-    urdu: "اے اللہ! میں نے تیرے ہی لیے روزہ رکھا اور تجھ پر ہی ایمان لایا اور تجھ پر ہی بھروسہ کیا اور تیرے ہی دیے ہوئے رزق سے افطار کیا",
-  }
-];
-
 function formatTo12Hour(timeStr: string) {
   if (!timeStr) return "--:--:--";
-  const [hoursStr, minutes, seconds] = timeStr.split(':');
-  let hours = parseInt(hoursStr, 10);
+  const [h, m, s] = timeStr.split(':');
+  let hours = parseInt(h, 10);
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
+  return `${String(hours).padStart(2, '0')}:${m}:${s} ${ampm}`;
 }
 
 function formatShortTime(timeStr: string) {
   if (!timeStr) return "--:--";
-  const [hoursStr, minutes] = timeStr.split(':');
-  let hours = parseInt(hoursStr, 10);
+  const [h, m] = timeStr.split(':');
+  let hours = parseInt(h, 10);
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  return `${String(hours).padStart(2, '0')}:${m} ${ampm}`;
 }
 
 export default function App() {
   const [now, setNow] = useState(new Date());
   const [timeOffset, setTimeOffset] = useState(0);
-  const [isSynced, setIsSynced] = useState(false);
-  const [displayData, setDisplayData] = useState<{
-    sehri: string;
-    iftar: string;
-    targetText: string;
-    countdown: { h: string; m: string; s: string };
-    isFinished: boolean;
-    isBefore: boolean;
-    currentDua: number;
-    fajr: string;
-    maghrib: string;
-  }>({
+  const [syncStatus, setSyncStatus] = useState<'syncing' | 'synced' | 'failed'>('syncing');
+  const [displayData, setDisplayData] = useState({
     sehri: "--:--:--",
     iftar: "--:--:--",
-    targetText: "وقت کا حساب ہو رہا ہے...",
-    countdown: { h: "00", m: "00", s: "00" },
-    isFinished: false,
-    isBefore: false,
-    currentDua: 0,
     fajr: "--:--",
     maghrib: "--:--",
+    targetText: "وقت کا حساب ہو رہا ہے...",
+    countdown: "00:00:00",
+    dateStr: "",
   });
 
-  // Sync with Pakistan Standard Time (PKT) from a reliable API
+  // Time Sync Logic
   useEffect(() => {
-    const syncWithPKT = async () => {
+    const syncTime = async () => {
       try {
-        const response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi');
-        const data = await response.json();
-        if (data.datetime) {
-          const serverTime = new Date(data.datetime).getTime();
+        // Primary API
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi');
+        if (!res.ok) throw new Error('Primary API failed');
+        const data = await res.json();
+        const serverTime = new Date(data.datetime).getTime();
+        const localTime = Date.now();
+        setTimeOffset(serverTime - localTime);
+        setSyncStatus('synced');
+      } catch (err) {
+        console.warn("Primary time sync failed, trying fallback...", err);
+        try {
+          // Fallback API
+          const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=Asia/Karachi');
+          if (!res.ok) throw new Error('Fallback API failed');
+          const data = await res.json();
+          const serverTime = new Date(data.dateTime).getTime();
           const localTime = Date.now();
-          const offset = serverTime - localTime;
-          setTimeOffset(offset);
-          setIsSynced(true);
-          console.log("Time synced with PKT. Offset:", offset, "ms");
+          setTimeOffset(serverTime - localTime);
+          setSyncStatus('synced');
+        } catch (fallbackErr) {
+          console.error("All time sync attempts failed:", fallbackErr);
+          setSyncStatus('failed');
         }
-      } catch (error) {
-        console.error("Time sync failed, falling back to device time:", error);
-        // Fallback: Just use device time but try to force PKT timezone logic
-        setIsSynced(false);
       }
     };
-
-    syncWithPKT();
-    // Re-sync every 30 minutes to maintain accuracy
-    const syncInterval = setInterval(syncWithPKT, 1000 * 60 * 30);
-    return () => clearInterval(syncInterval);
+    syncTime();
   }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      // Calculate current PKT time
-      // Date.now() is UTC, adding timeOffset corrects device clock errors
-      // Then we handle everything in PKT context
-      const correctedNow = new Date(Date.now() + timeOffset);
-      setNow(correctedNow);
+      setNow(new Date(Date.now() + timeOffset));
     }, 1000);
     return () => clearInterval(timer);
   }, [timeOffset]);
 
   useEffect(() => {
-    // We need the date string in PKT (Asia/Karachi)
-    const pktOptions: Intl.DateTimeFormatOptions = {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Karachi',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    };
-    
-    const formatter = new Intl.DateTimeFormat('en-CA', pktOptions);
-    const todayStr = formatter.format(now); // Returns YYYY-MM-DD in PKT
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const formattedParts = formatter.format(now).split('/');
+    const dd = formattedParts[0];
+    const mm = formattedParts[1];
+    const yyyy = formattedParts[2];
+    const todayStr = `${yyyy}-${mm}-${dd}`;
 
     const todayTimes = ramadanData[todayStr];
 
     if (todayTimes) {
-      // Create Date objects for Sehri and Iftar in PKT
       const sehriDateTime = new Date(`${todayStr}T${todayTimes.sehri}+05:00`);
       const iftarDateTime = new Date(`${todayStr}T${todayTimes.iftar}+05:00`);
 
@@ -160,269 +127,151 @@ export default function App() {
       let targetText: string;
       let displaySehri = todayTimes.sehri;
       let displayIftar = todayTimes.iftar;
-      let duaIndex = 0;
 
-      if (now < sehriDateTime) {
+      if (now.getTime() < sehriDateTime.getTime()) {
         targetTime = sehriDateTime;
-        targetText = "سحری ختم ہونے میں باقی وقت";
-        duaIndex = 0;
-      } else if (now < iftarDateTime) {
+        targetText = "سحری ختم ہونے میں باقی وقت:";
+      } else if (now.getTime() < iftarDateTime.getTime()) {
         targetTime = iftarDateTime;
-        targetText = "افطار ہونے میں باقی وقت";
-        duaIndex = 1;
+        targetText = "افطار ہونے میں باقی وقت:";
       } else {
-        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        const tmrwStr = formatter.format(tomorrow);
-        const tomorrowTimes = ramadanData[tmrwStr];
+        const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+        const tmrwParts = formatter.format(tomorrow).split('/');
+        const tomorrowStr = `${tmrwParts[2]}-${tmrwParts[1]}-${tmrwParts[0]}`;
+        const tomorrowTimes = ramadanData[tomorrowStr];
 
         if (tomorrowTimes) {
-          targetTime = new Date(`${tmrwStr}T${tomorrowTimes.sehri}+05:00`);
-          targetText = "اگلی سحری میں باقی وقت";
+          targetTime = new Date(`${tomorrowStr}T${tomorrowTimes.sehri}+05:00`);
+          targetText = "اگلی سحری میں باقی وقت:";
           displaySehri = tomorrowTimes.sehri;
           displayIftar = tomorrowTimes.iftar;
-          duaIndex = 0;
         } else {
-          setDisplayData(prev => ({
-            ...prev,
-            sehri: formatTo12Hour(todayTimes.sehri),
-            iftar: formatTo12Hour(todayTimes.iftar),
+          setDisplayData({
+            sehri: formatTo12Hour(displaySehri),
+            iftar: formatTo12Hour(displayIftar),
+            fajr: formatShortTime(displaySehri),
+            maghrib: formatShortTime(displayIftar),
             targetText: "رمضان المبارک اختتام پذیر ہوا",
-            countdown: { h: "00", m: "00", s: "00" },
-            isFinished: true,
-            fajr: formatShortTime(todayTimes.sehri),
-            maghrib: formatShortTime(todayTimes.iftar),
-          }));
+            countdown: "عید مبارک",
+            dateStr: `${dd}-${mm}-${yyyy}`
+          });
           return;
         }
       }
 
       const diff = Math.max(0, targetTime.getTime() - now.getTime());
-      const h = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0');
-      const m = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
-      const s = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
 
       setDisplayData({
         sehri: formatTo12Hour(displaySehri),
         iftar: formatTo12Hour(displayIftar),
-        targetText,
-        countdown: { h, m, s },
-        isFinished: false,
-        isBefore: false,
-        currentDua: duaIndex,
         fajr: formatShortTime(displaySehri),
         maghrib: formatShortTime(displayIftar),
+        targetText,
+        countdown: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
+        dateStr: `${dd}-${mm}-${yyyy}`
       });
     } else {
       const firstDayDate = new Date(`2026-02-19T00:00:00+05:00`);
-      if (now < firstDayDate) {
+      if (now.getTime() < firstDayDate.getTime()) {
         const firstSehriTime = new Date(`2026-02-19T${ramadanData["2026-02-19"].sehri}+05:00`);
         const diff = firstSehriTime.getTime() - now.getTime();
-        const h = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0');
-        const m = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
-        const s = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
 
         setDisplayData({
           sehri: "--:--:--",
           iftar: "--:--:--",
-          targetText: "رمضان المبارک کی آمد میں باقی وقت",
-          countdown: { h, m, s },
-          isFinished: false,
-          isBefore: true,
-          currentDua: 0,
           fajr: "--:--",
           maghrib: "--:--",
+          targetText: "رمضان کی آمد میں باقی وقت:",
+          countdown: `${d} دن, ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`,
+          dateStr: `${dd}-${mm}-${yyyy}`
         });
       }
     }
-  }, [now, timeOffset]);
+  }, [now]);
 
   return (
-    <div className="min-h-screen atmosphere urdu-text relative overflow-hidden flex flex-col items-center justify-center p-4 md:p-8">
-      {/* Background Elements */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/5 rounded-full blur-[120px] glow-effect" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#064e3b]/20 rounded-full blur-[120px]" />
-      </div>
-
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-6xl z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch"
-      >
-        {/* Left Column: Main Display */}
-        <div className="lg:col-span-7 space-y-6">
-          <header className="space-y-2 text-center lg:text-right">
-            <div className="flex flex-col lg:flex-row items-center lg:justify-end gap-2 mb-2">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${isSynced ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${isSynced ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                <span>{isSynced ? '🟢 لائیو پاکستان سٹینڈرڈ ٹائم (PKT)' : '🔴 آف لائن ٹائم (اپنے موبائل کا ٹائم درست رکھیں)'}</span>
-              </motion.div>
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] text-sm font-medium"
-              >
-                <MapPin size={14} />
-                <span>گوجرخان، پاکستان</span>
-              </motion.div>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-tight">
-              سنی رضوی <span className="text-[#D4AF37]">اتحاد کونسل</span>
-            </h1>
-            <p className="text-xl text-white/60 font-urdu">رمضان المبارک ۱۴۴۷ پورٹل</p>
-          </header>
-
-          <div className="glass-card rounded-[2rem] p-8 md:p-12 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-50" />
-            
-            <div className="flex flex-col items-center justify-center space-y-8">
-              <div className="text-center">
-                <p className="text-[#D4AF37] text-lg font-medium mb-4 flex items-center justify-center gap-2">
-                  <Clock size={18} />
-                  {displayData.targetText}
-                </p>
-                <div className="flex items-center gap-4 md:gap-8" dir="ltr">
-                  {[
-                    { label: 'Hours', val: displayData.countdown.h },
-                    { label: 'Minutes', val: displayData.countdown.m },
-                    { label: 'Seconds', val: displayData.countdown.s }
-                  ].map((unit) => (
-                    <div key={unit.label} className="flex flex-col items-center">
-                      <motion.div 
-                        key={unit.val}
-                        initial={{ y: 10, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        className="text-6xl md:text-8xl font-bold font-mono text-white tabular-nums tracking-tighter"
-                      >
-                        {unit.val}
-                      </motion.div>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 mt-2">{unit.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-full grid grid-cols-2 gap-6 pt-8 border-t border-white/10">
-                <div className="space-y-2 text-center">
-                  <div className="flex items-center justify-center gap-2 text-white/60 text-sm">
-                    <Sun size={14} className="text-[#D4AF37]" />
-                    <span>وقتِ سحری</span>
-                  </div>
-                  <div className="text-2xl md:text-3xl font-bold font-mono text-white" dir="ltr">
-                    {displayData.sehri}
-                  </div>
-                </div>
-                <div className="space-y-2 text-center">
-                  <div className="flex items-center justify-center gap-2 text-white/60 text-sm">
-                    <Moon size={14} className="text-[#D4AF37]" />
-                    <span>وقتِ افطار</span>
-                  </div>
-                  <div className="text-2xl md:text-3xl font-bold font-mono text-white" dir="ltr">
-                    {displayData.iftar}
-                  </div>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen urdu-text flex flex-col items-center justify-center p-4">
+      <div className="container-custom">
+        <h1 className="text-[#D4AF37] text-4xl md:text-5xl mb-1 drop-shadow-lg font-bold">سنی رضوی اتحاد کونسل</h1>
+        <h2 className="text-2xl md:text-3xl text-white border-b-2 border-[#D4AF37] pb-2 px-4 inline-block mb-4">گوجرخان</h2>
+        
+        <div className="block mb-2">
+          <div className="date-display">
+            {syncStatus === 'syncing' ? "انٹرنیٹ سے وقت سیٹ ہو رہا ہے..." : `آج کی تاریخ: ${displayData.dateStr}`}
           </div>
+        </div>
+        
+        <div className={`live-time-badge-custom ${syncStatus === 'synced' ? 'text-[#2ecc71]' : syncStatus === 'failed' ? 'text-[#f1c40f]' : 'text-white'}`}>
+          {syncStatus === 'syncing' && "وقت کنیکٹ ہو رہا ہے..."}
+          {syncStatus === 'synced' && "🟢 لائیو پاکستان سٹینڈرڈ ٹائم (مستند)"}
+          {syncStatus === 'failed' && "🟡 لوکل ڈیوائس ٹائم (انٹرنیٹ کنیکٹ نہیں)"}
+        </div>
 
-          {/* Prayer Times Grid */}
-          <div className="glass-card rounded-[2rem] p-6">
-            <h3 className="text-center text-[#D4AF37] text-xl font-bold mb-6 flex items-center justify-center gap-2">
-              <Bell size={18} />
-              اوقاتِ نماز (فقہ حنفی)
-            </h3>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-              {[
-                { name: 'فجر', time: displayData.fajr },
-                { name: 'ظہر', time: '01:30 PM' },
-                { name: 'عصر', time: '04:45 PM' },
-                { name: 'مغرب', time: displayData.maghrib },
-                { name: 'عشاء', time: '08:00 PM' }
-              ].map((prayer) => (
-                <div key={prayer.name} className="bg-white/5 border border-[#D4AF37]/20 rounded-2xl p-4 text-center hover:bg-[#D4AF37]/10 hover:scale-105 transition-all duration-300">
-                  <span className="block text-[#f1c40f] text-lg font-bold mb-1">{prayer.name}</span>
-                  <span className="block text-sm font-mono text-white" dir="ltr">{prayer.time}</span>
-                </div>
-              ))}
-            </div>
+        {/* سحری و افطار */}
+        <div className="times-box">
+          <div className="time-item">
+            وقتِ سحری
+            <span className="time-value">{displayData.sehri}</span>
+          </div>
+          <div className="time-item">
+            وقتِ افطار
+            <span className="time-value">{displayData.iftar}</span>
           </div>
         </div>
 
-        {/* Right Column: Content & Details */}
-        <div className="lg:col-span-5 space-y-6 flex flex-col">
-          {/* Notice Board */}
-          <div className="announcement-box">
-            <div className="announcement-header">📢 اہم اعلان</div>
-            <div className="announcement-body">
-                سنی رضوی اتحاد کونسل کے تحت مرکزی جامع مسجد میں <br />ہر ماہ کے پہلے جمعہ کو نمازِ عشاء کے فوراً بعد
-                <span className="highlight-dars">درسِ قرآن</span>
-                ہوتا ہے۔
-            </div>
+        {/* الٹی گنتی */}
+        <div className="mt-5">
+          <div className="countdown-title">{displayData.targetText}</div>
+          <div className="timer-custom">
+            {displayData.countdown}
           </div>
-
-          <div className="glass-card rounded-[2rem] p-8 flex-1 flex flex-col justify-center space-y-8">
-            <div className="space-y-6 text-center">
-              <div className="inline-flex p-3 rounded-2xl bg-[#D4AF37]/10 text-[#D4AF37]">
-                <Heart size={24} />
-              </div>
-              <AnimatePresence mode="wait">
-                <motion.div 
-                  key={displayData.currentDua}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  className="space-y-6"
-                >
-                  <h3 className="text-2xl font-bold text-[#D4AF37]">{duas[displayData.currentDua].title}</h3>
-                  <p className="text-3xl md:text-4xl font-amiri leading-relaxed text-white">
-                    {duas[displayData.currentDua].arabic}
-                  </p>
-                  <p className="text-lg text-white/60 font-urdu leading-relaxed">
-                    {duas[displayData.currentDua].urdu}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <div className="glass-card rounded-[2rem] p-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-[#D4AF37]">
-                <Calendar size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-white/40 uppercase tracking-wider">آج کی تاریخ</p>
-                <p className="text-lg font-medium">
-                  {isSynced ? now.toLocaleDateString('ur-PK', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'long', year: 'numeric' }) : 'انٹرنیٹ سے وقت سیٹ ہو رہا ہے...'}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-white/40 uppercase tracking-wider">اسلامی سال</p>
-              <p className="text-lg font-medium text-[#D4AF37]">۱۴۴۷ ہجری</p>
-            </div>
-          </div>
-
-          <footer className="text-center lg:text-right px-4">
-            <p className="text-sm text-white/30 leading-relaxed">
-              اوقات بمطابق: دعوت اسلامی (رمضان ۲۰۲۶/۱۴۴۷)<br />
-              یوسف آباد، ڈھوک ابرا، گوجر خان
-            </p>
-          </footer>
         </div>
-      </motion.div>
 
-      {/* Floating Decoration */}
-      <div className="fixed bottom-8 left-8 z-20 hidden md:block">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-px h-12 bg-gradient-to-t from-[#D4AF37] to-transparent" />
-          <span className="text-[10px] uppercase tracking-[0.3em] text-[#D4AF37] rotate-180 [writing-mode:vertical-lr]">
-            Ramadan Mubarak
-          </span>
+        {/* نمازوں کے اوقات */}
+        <div className="prayers-title">اوقاتِ نماز (فقہ حنفی)</div>
+        <div className="prayers-grid">
+          <div className="prayer-card">
+            <span className="prayer-name">فجر</span>
+            <span className="prayer-time">{displayData.fajr}</span>
+          </div>
+          <div className="prayer-card">
+            <span className="prayer-name">ظہر</span>
+            <span className="prayer-time">01:30 PM</span> 
+          </div>
+          <div className="prayer-card">
+            <span className="prayer-name">عصر</span>
+            <span className="prayer-time">04:45 PM</span> 
+          </div>
+          <div className="prayer-card">
+            <span className="prayer-name">مغرب</span>
+            <span className="prayer-time">{displayData.maghrib}</span>
+          </div>
+          <div className="prayer-card">
+            <span className="prayer-name">عشاء</span>
+            <span className="prayer-time">08:00 PM</span> 
+          </div>
+        </div>
+
+        {/* مستقل اعلانات کا نوٹس بورڈ */}
+        <div className="announcement-box">
+          <div className="announcement-header">📢 اہم اعلان</div>
+          <div className="announcement-body">
+            سنی رضوی اتحاد کونسل کے تحت مرکزی جامع مسجد میں <br />ہر ماہ کے پہلے جمعہ کو نمازِ عشاء کے فوراً بعد
+            <span className="highlight-dars quran-text">درسِ قرآن</span>
+            ہوتا ہے۔
+          </div>
+        </div>
+        
+        <div className="footer">
+          اوقات بمطابق: دعوت اسلامی (رمضان 2026/1447)<br />
+          یوسف آباد، ڈھوک ابرا، گوجر خان
         </div>
       </div>
     </div>
